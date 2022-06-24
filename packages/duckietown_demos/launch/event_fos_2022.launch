@@ -38,7 +38,12 @@ LP removing for now
 		<!-- Vehicle avoidance stack -->
 		<arg name="vehicle_avoidance" value="true"/>
 		<arg name="/vehicle_avoidance/detection" value="true" />
-		<arg name="/vehicle_avoidance/filter" value="true" />
+		<!-- <arg name="/vehicle_avoidance/filter" value="true" /> -->
+
+		<!-- Obstacle detection stack -->
++		<arg name="obstacle_detection" value="true"/>
++		<arg name="/obstacle_detection/detection" value="true />
+
   	</include>
 
 	<!-- apriltag node -->
