@@ -4,8 +4,8 @@
 import rospy
 from cv_bridge import CvBridge
 from duckietown.dtros import DTParam, DTROS, NodeType
-from duckietown_msgs.msg import BoolStamped, StopLineReading
-from duckietown_msgs.srv import ChangePattern
+from duckietown_msgs.msg import BoolStamped, StopLineReading, LEDPattern
+from duckietown_msgs.srv import ChangePattern, SetCustomLEDPattern
 from std_msgs.msg import String
 
 
@@ -44,7 +44,7 @@ class ObstacleDetectionNode(DTROS):
             self.maybe_publish_stop_line
         )
         self.last_led_state = None
-        self.changePattern = rospy.ServiceProxy("~set_pattern", ChangePattern)
+        self.changePattern = rospy.ServiceProxy("~set_custom_pattern", SetCustomLEDPattern)
 
 
     def cb_vehicle_detection(self, msg):
@@ -89,29 +89,11 @@ class ObstacleDetectionNode(DTROS):
         """
         Publish a service message to trigger the hazard light at the back of the robot
         """
-        msg = String()
-
-        if stopped:
-            msg.data = "OBSTACLE_STOPPED"
-            if msg.data != self.last_led_state:
-                self.changePattern(msg)
-            self.last_led_state = msg.data
-        elif detection:
-            msg.data = "OBSTACLE_ALERT"
-            if msg.data != self.last_led_state:
-                self.changePattern(msg)
-            self.last_led_state = msg.data
-        else:
-            if self.state == "LANE_FOLLOWING":
-                msg.data = "CAR_DRIVING"
-                if msg.data != self.last_led_state:
-                    self.changePattern(msg)
-                self.last_led_state = "CAR_DRIVING"
-            elif self.state == "NORMAL_JOYSTICK_CONTROL":
-                msg.data = "WHITE"
-                if msg.data != self.last_led_state:
-                    self.changePattern(msg)
-                self.last_led_state = msg.data
+        msg = self.led_patterns(stopped=stopped, detection=detection)
+        if msg != self.last_led_state:
+            # self.logdebug(f"prev {self.last_led_state} curr {msg}")
+            self.changePattern(msg)
+        self.last_led_state = msg
 
     def publish_stop_line_msg(self, header, detected=False, at=False, x=0.0, y=0.0):
         """
@@ -141,6 +123,35 @@ class ObstacleDetectionNode(DTROS):
         stopped_flag.data = bool(at)
         self.pub_stopped_flag.publish(stopped_flag)
 
+    def led_patterns(self, stopped: bool, detection: bool) -> LEDPattern:
+        msg = LEDPattern()
+
+        # DB21+/4-LED bot LED mapping
+        # 0 - front left
+        # 2 - front right
+        # 3 - rear right
+        # 4 - rear left
+
+        color_list = ["white", "white", "white", "red", "red"]
+
+        msg.color_list = color_list
+        msg.color_mask = []
+
+        if stopped:
+            msg.frequency = 5.0
+            msg.frequency_mask = [0, 0, 0, 1, 1]
+        elif detection:
+            msg.frequency = 1.0
+            msg.frequency_mask = [0, 0, 0, 1, 1]
+        else:
+            # no blinking for normal lane_following
+            # ref: if self.state == "LANE_FOLLOWING":
+            msg.frequency = 0.0
+            msg.frequency_mask = [0]
+            if self.state == "NORMAL_JOYSTICK_CONTROL":
+                msg.color_list = ["white", "white", "white", "white", "white"]
+
+        return msg
 
 
 if __name__ == "__main__":
